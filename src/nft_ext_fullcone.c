@@ -159,6 +159,8 @@ static int nft_fullcone_init(const struct nft_ctx *ctx, const struct nft_expr *e
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0) && !defined(CONFIG_NF_CONNTRACK_CHAIN_EVENTS)
 		if (!READ_ONCE(ctx->net->ct.nf_conntrack_event_cb)) {
 			nf_conntrack_register_notifier(ctx->net, &ct_event_notifier);
+		} else {
+			register_ct_notifier_ret = -EBUSY;
 		}
 #else
 		register_ct_notifier_ret = nf_conntrack_register_notifier(ctx->net, &ct_event_notifier);
@@ -166,12 +168,11 @@ static int nft_fullcone_init(const struct nft_ctx *ctx, const struct nft_expr *e
 
 		if (register_ct_notifier_ret) {
 			/* non-zero means failure */
-			pr_warn("failed to register a conntrack notifier. Disable active GC for mappings.\n");
+			pr_warn_once("failed to register a conntrack notifier. Disable active GC for mappings.\n");
 		} else {
 			ct_event_notifier_registered = 1;
 			pr_debug("nft_fullcone_init(): ct_event_notifier registered\n");
 		}
-
 	}
 
 	mutex_unlock(&nf_ct_net_event_lock);
@@ -256,7 +257,6 @@ static void nft_fullcone_common_destory(const struct nft_ctx *ctx)
 			ct_event_notifier_registered = 0;
 
 			pr_debug("nft_fullcone_common_destory(): ct_event_notifier unregistered\n");
-
 		}
 	}
 
